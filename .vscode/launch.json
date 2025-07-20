@@ -1,0 +1,26 @@
+{
+    "configurations": [
+        {
+            "name": "Lambda",
+            "outFiles": [
+                "${workspaceFolder}/**/*.js"
+            ],
+            "preLaunchTask": "tsc: watch - tsconfig.json",
+            "program": "${workspaceFolder}/lambda.js",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "node"
+        },
+        {
+            "name": "Chrome",
+            "request": "launch",
+            "type": "chrome",
+            "url": "http://localhost:8000",
+            "webRoot": "${workspaceFolder}",
+            "preLaunchTask": "TypeScript: Watch"
+        }
+    ],
+    "version": "0.2.0"
+}
