@@ -1,5 +1,5 @@
 import { createServer } from "node:http"
-import { open, readFile } from "node:fs/promises"
+import { open } from "node:fs/promises"
 
 const server = createServer((request, response) => {
     switch (request.url) {
@@ -37,18 +37,12 @@ function addListeners(...events: string[]) {
     }
 }
 
-addListeners(
-    "checkContinue",
-    "checkExpectation",
-    "clientError",
-    "close",
-    "connect",
-    "connection",
-    "dropRequest",
-    "error",
-    "listening",
-    "request",
-    "upgrade",
-)
+// addListeners("checkContinue", "checkExpectation", "clientError", "close", "connect", "connection", "dropRequest", "error", "listening", "request", "upgrade",)
 
-server.listen(8000)
+queueMicrotask(() => {
+    console.log("Setting up a server...")
+    server.listen(8000)
+    console.log("Server is running on http://localhost:8000")
+})
+
+debugger
