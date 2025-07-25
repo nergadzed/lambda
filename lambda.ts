@@ -19,25 +19,16 @@ const server = createServer((request, response) => {
             open(`.${request.url}`, "r")
                 .then(value => value.createReadStream({ encoding: "utf-8" }).pipe(response))
             break
+        case "/app.css":
+            response.writeHead(200, { "Content-Type": "text/css; charset=utf-8" })
+            open(`.${request.url}`, "r")
+                .then(value => value.createReadStream({ encoding: "utf-8" }).pipe(response))
+            break
         default:
             response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" })
             response.end("404: NOT FOUND")
     }
 })
-
-function logger(name: string) {
-    return function (..._input: string[]) {
-        console.log(name, /* input */)
-    }
-}
-
-function addListeners(...events: string[]) {
-    for (let event of events) {
-        server.addListener(event, logger(event))
-    }
-}
-
-// addListeners("checkContinue", "checkExpectation", "clientError", "close", "connect", "connection", "dropRequest", "error", "listening", "request", "upgrade",)
 
 queueMicrotask(() => {
     console.log("Setting up a server...")
@@ -45,4 +36,4 @@ queueMicrotask(() => {
     console.log("Server is running on http://localhost:8000")
 })
 
-debugger
+// debugger

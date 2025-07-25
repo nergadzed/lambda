@@ -13,30 +13,6 @@
 				"isDefault": true
 			},
 			"label": "TypeScript: Watch"
-		},
-		{
-			"label": "Node: Serve",
-			"type": "process",
-			"isBackground": true,
-			"command": "node",
-			"args": [
-				"${workspaceFolder}/lambda.js"
-			],
-			"problemMatcher": {
-				"background": {
-					"activeOnStart": true,
-					"beginsPattern": "^Setting up a server\\.\\.\\.",
-					"endsPattern": "^Server is running on.*"
-				}
-			}
-		},
-		{
-			"label": "Setup",
-			"dependsOn": [
-				"TypeScript: Watch",
-				"Node: Serve"
-			],
-			"dependsOrder": "sequence"
 		}
 	]
 }

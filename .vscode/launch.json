@@ -18,17 +18,14 @@
             "preLaunchTask": "TypeScript: Watch",
             "request": "launch",
             "type": "chrome",
+            "timeout": 20000,
+            "runtimeExecutable": "canary",
+            "server": {
+                "program": "lambda.js",
+                "smartStep": true,
+            },
             "url": "http://localhost:8000",
             "webRoot": "${workspaceFolder}"
-        },
-        {
-            "type": "firefox",
-            "request": "launch",
-            "reAttach": true,
-            "name": "Firefox",
-            "url": "http://localhost:8000/",
-            "webRoot": "${workspaceFolder}",
-            "preLaunchTask": "Setup"
         }
     ],
     "version": "0.2.0"
