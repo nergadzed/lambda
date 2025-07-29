@@ -17,14 +17,14 @@
             "name": "Chrome",
             "preLaunchTask": "TypeScript: Watch",
             "request": "launch",
-            "type": "chrome",
-            "timeout": 20000,
-            "runtimeExecutable": "canary",
             "server": {
                 "program": "lambda.js",
-                "smartStep": true,
+                "smartStep": true
             },
+            "timeout": 20000,
+            "type": "chrome",
             "url": "http://localhost:8000",
+            "userDataDir": true,
             "webRoot": "${workspaceFolder}"
         }
     ],

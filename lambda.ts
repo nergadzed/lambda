@@ -19,7 +19,7 @@ const server = createServer((request, response) => {
             open(`.${request.url}`, "r")
                 .then(value => value.createReadStream({ encoding: "utf-8" }).pipe(response))
             break
-        case "/app.css":
+        case "/lambda.css":
             response.writeHead(200, { "Content-Type": "text/css; charset=utf-8" })
             open(`.${request.url}`, "r")
                 .then(value => value.createReadStream({ encoding: "utf-8" }).pipe(response))
