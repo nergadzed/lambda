@@ -1,0 +1,8 @@
+{
+    "search.exclude": {
+        "**/node_modules": false,
+        "**/bower_components": true,
+        "**/*.code-search": true
+    },
+    "typescript.workspaceSymbols.excludeLibrarySymbols": false,
+}
