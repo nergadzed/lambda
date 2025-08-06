@@ -4,6 +4,10 @@
     box-sizing: inherit;
 }
 
+:root {
+    --spacing: 0.5cqmin;
+}
+
 html,
 body {
     box-sizing: border-box;
@@ -14,4 +18,9 @@ body {
 
     margin: 0;
     padding: 0;
+
+    &>grid-container {
+        margin: var(--spacing);
+        height: calc(100% - var(--spacing) * 2);
+    }
 }
