@@ -2,13 +2,16 @@
 *::before,
 *::after {
     box-sizing: inherit;
-    margin: 0;
-    padding: 0;
 }
 
 html,
 body {
     box-sizing: border-box;
+    container-type: size;
+
     height: 100%;
     width: 100%;
+
+    margin: 0;
+    padding: 0;
 }

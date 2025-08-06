@@ -4,10 +4,10 @@ class GridContainer extends HTMLElement {
     display;
     rowTemplate;
     colTemplate;
-    static observedAttributes = ["rows", "columns", "rowTemplate", "colTemplate"];
+    static observedAttributes = ["rows", "cols", "rowTemplate", "colTemplate"];
     styleSheet;
     selfStyleRule;
-    parent = null;
+    root = null;
     constructor(rows = 1, cols = 1, display = "grid", rowTemplate = `repeat(${rows}, 1fr)`, colTemplate = `repeat(${cols}, 1fr)`) {
         super();
         this.rows = rows;
@@ -15,38 +15,62 @@ class GridContainer extends HTMLElement {
         this.display = display;
         this.rowTemplate = rowTemplate;
         this.colTemplate = colTemplate;
-        try {
-            CSSStyleValue.parse("grid-template-rows", rowTemplate);
-            CSSStyleValue.parse("grid-template-columns", rowTemplate);
-        }
-        catch {
-            console.error("Unable to parse supplied grid-template-rows/grid-template-columns");
-            rowTemplate = `repeat(${rows}, 1fr)`;
-            colTemplate = `repeat(${cols}, 1fr)`;
-        }
         this.styleSheet = new CSSStyleSheet;
-        this.selfStyleRule = this.styleSheet.cssRules.item(this.styleSheet.insertRule("grid-container {}"));
+        this.selfStyleRule = this.styleSheet.cssRules[this.styleSheet.insertRule(":host {}")];
         const propertyValuePairs = [
-            ["display", new CSSKeywordValue("grid")],
-            ["width", CSS.percent(100)],
-            ["height", CSS.percent(100)],
-            ["grid-template-rows", new CSSUnparsedValue([rowTemplate])],
-            ["grid-template-columns", new CSSUnparsedValue([colTemplate])],
+            ["display", "grid"],
+            ["container-type", "size"],
+            // [ "width", "98cqw" ],
+            ["height", "98cqh"],
+            ["box-sizing", "border-box"],
+            ["margin-top", "1cqh"],
+            ["margin-right", "1cqw"],
+            ["margin-bottom", "1cqh"],
+            ["margin-left", "1cqw"],
+            ["grid-template-rows", rowTemplate],
+            ["grid-template-columns", colTemplate],
+            ["grid-auto-rows", "0"],
+            ["grid-auto-columns", "0"],
         ];
         for (const [property, value] of propertyValuePairs)
-            this.selfStyleRule.styleMap.set(property, value);
+            this.updateStyle(property, value);
+    }
+    updateStyle(property, value) {
+        try {
+            if (typeof value === "string") {
+                CSSStyleValue.parse(property, value);
+            }
+            this.selfStyleRule.style.setProperty(property, value);
+        }
+        catch {
+            console.error(`Unable to parse ${value} as valid value for ${property}.`);
+        }
     }
     adoptedCallback(...rest) {
         console.log("adoptedCallback", rest);
     }
-    attributeChangedCallback(...rest) {
-        console.log("attributeChangedCallback", rest);
+    attributeChangedCallback(name, oldValue, newValue) {
+        console.log(`${name} changed from ${oldValue} to ${newValue}`);
+        switch (name) {
+            case "rows":
+                newValue = `repeat(${newValue ?? "1"}, 1fr)`;
+            case "rowTemplate":
+                this.updateStyle("grid-template-rows", newValue ?? "repeat(1, 1fr)");
+                break;
+            case "cols":
+                newValue = `repeat(${newValue ?? "1"}, 1fr)`;
+            case "colTemplate":
+                this.updateStyle("grid-template-columns", newValue ?? "repeat(1, 1fr)");
+                break;
+            default:
+                const _exhaustive = name;
+                throw new Error(`GridContainer's attributeChangedCallback's switch is non-exhaustive. Missed ${_exhaustive}`);
+        }
     }
-    connectedCallback(...rest) {
-        this.parent = this.parentElement;
-        this.parent?.shadowRoot ?? this.parentElement?.attachShadow({ mode: "open" });
-        this.parent?.shadowRoot?.adoptedStyleSheets.push(this.styleSheet);
-        this.parent?.shadowRoot?.appendChild(this);
+    connectedCallback() {
+        this.root = this.attachShadow({ mode: "open" });
+        this.root.adoptedStyleSheets = [this.styleSheet];
+        this.root.appendChild(document.createElement("slot"));
     }
     connectedMoveCallback(...rest) {
         console.log("connectedMoveCallback", rest);
@@ -57,4 +81,4 @@ class GridContainer extends HTMLElement {
 }
 customElements.define("grid-container", GridContainer);
 export {};
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiYXBwLm1qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImFwcC5tdHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBVUEsTUFBTSxhQUFjLFNBQVEsV0FBVztJQU1yQjtJQUNBO0lBQ0E7SUFDQTtJQUNBO0lBVGQsTUFBTSxDQUFDLGtCQUFrQixHQUFHLENBQUUsTUFBTSxFQUFFLFNBQVMsRUFBRSxhQUFhLEVBQUUsYUFBYSxDQUFFLENBQUE7SUFDL0UsVUFBVSxDQUFlO0lBQ3pCLGFBQWEsQ0FBYztJQUMzQixNQUFNLEdBQXVCLElBQUksQ0FBQTtJQUNqQyxZQUNjLE9BQWUsQ0FBQyxFQUNoQixPQUFlLENBQUMsRUFDaEIsVUFBa0MsTUFBTSxFQUN4QyxjQUFzQixVQUFXLElBQUssUUFBUSxFQUM5QyxjQUFzQixVQUFXLElBQUssUUFBUTtRQUV4RCxLQUFLLEVBQUUsQ0FBQTtRQU5HLFNBQUksR0FBSixJQUFJLENBQVk7UUFDaEIsU0FBSSxHQUFKLElBQUksQ0FBWTtRQUNoQixZQUFPLEdBQVAsT0FBTyxDQUFpQztRQUN4QyxnQkFBVyxHQUFYLFdBQVcsQ0FBbUM7UUFDOUMsZ0JBQVcsR0FBWCxXQUFXLENBQW1DO1FBR3hELElBQUksQ0FBQztZQUNELGFBQWEsQ0FBQyxLQUFLLENBQUUsb0JBQW9CLEVBQUUsV0FBVyxDQUFFLENBQUE7WUFDeEQsYUFBYSxDQUFDLEtBQUssQ0FBRSx1QkFBdUIsRUFBRSxXQUFXLENBQUUsQ0FBQTtRQUMvRCxDQUFDO1FBQUMsTUFBTSxDQUFDO1lBQ0wsT0FBTyxDQUFDLEtBQUssQ0FBRSxtRUFBbUUsQ0FBRSxDQUFBO1lBQ3BGLFdBQVcsR0FBRyxVQUFXLElBQUssUUFBUSxDQUFBO1lBQ3RDLFdBQVcsR0FBRyxVQUFXLElBQUssUUFBUSxDQUFBO1FBQzFDLENBQUM7UUFDRCxJQUFJLENBQUMsVUFBVSxHQUFHLElBQUksYUFBYSxDQUFBO1FBQ25DLElBQUksQ0FBQyxhQUFhLEdBQUcsSUFBSSxDQUFDLFVBQVUsQ0FBQyxRQUFRLENBQUMsSUFBSSxDQUFFLElBQUksQ0FBQyxVQUFVLENBQUMsVUFBVSxDQUFFLG1CQUFtQixDQUFFLENBQWtCLENBQUE7UUFDdkgsTUFBTSxrQkFBa0IsR0FBcUM7WUFDekQsQ0FBRSxTQUFTLEVBQUUsSUFBSSxlQUFlLENBQUUsTUFBTSxDQUFFLENBQUU7WUFDNUMsQ0FBRSxPQUFPLEVBQUUsR0FBRyxDQUFDLE9BQU8sQ0FBRSxHQUFHLENBQUUsQ0FBRTtZQUMvQixDQUFFLFFBQVEsRUFBRSxHQUFHLENBQUMsT0FBTyxDQUFFLEdBQUcsQ0FBRSxDQUFFO1lBQ2hDLENBQUUsb0JBQW9CLEVBQUUsSUFBSSxnQkFBZ0IsQ0FBRSxDQUFFLFdBQVcsQ0FBRSxDQUFFLENBQUU7WUFDakUsQ0FBRSx1QkFBdUIsRUFBRSxJQUFJLGdCQUFnQixDQUFFLENBQUUsV0FBVyxDQUFFLENBQUUsQ0FBRTtTQUN2RSxDQUFBO1FBQ0QsS0FBTSxNQUFNLENBQUUsUUFBUSxFQUFFLEtBQUssQ0FBRSxJQUFJLGtCQUFrQjtZQUNqRCxJQUFJLENBQUMsYUFBYSxDQUFDLFFBQVEsQ0FBQyxHQUFHLENBQUUsUUFBUSxFQUFFLEtBQUssQ0FBRSxDQUFBO0lBQzFELENBQUM7SUFDRCxlQUFlLENBQUUsR0FBRyxJQUFlO1FBQy9CLE9BQU8sQ0FBQyxHQUFHLENBQUUsaUJBQWlCLEVBQUUsSUFBSSxDQUFFLENBQUE7SUFDMUMsQ0FBQztJQUNELHdCQUF3QixDQUFFLEdBQUcsSUFBZTtRQUN4QyxPQUFPLENBQUMsR0FBRyxDQUFFLDBCQUEwQixFQUFFLElBQUksQ0FBRSxDQUFBO0lBQ25ELENBQUM7SUFDRCxpQkFBaUIsQ0FBRSxHQUFHLElBQWU7UUFDakMsSUFBSSxDQUFDLE1BQU0sR0FBRyxJQUFJLENBQUMsYUFBYSxDQUFBO1FBQ2hDLElBQUksQ0FBQyxNQUFNLEVBQUUsVUFBVSxJQUFJLElBQUksQ0FBQyxhQUFhLEVBQUUsWUFBWSxDQUFFLEVBQUUsSUFBSSxFQUFFLE1BQU0sRUFBRSxDQUFFLENBQUE7UUFDL0UsSUFBSSxDQUFDLE1BQU0sRUFBRSxVQUFVLEVBQUUsa0JBQWtCLENBQUMsSUFBSSxDQUFFLElBQUksQ0FBQyxVQUFVLENBQUUsQ0FBQTtRQUNuRSxJQUFJLENBQUMsTUFBTSxFQUFFLFVBQVUsRUFBRSxXQUFXLENBQUUsSUFBSSxDQUFFLENBQUE7SUFDaEQsQ0FBQztJQUNELHFCQUFxQixDQUFFLEdBQUcsSUFBZTtRQUNyQyxPQUFPLENBQUMsR0FBRyxDQUFFLHVCQUF1QixFQUFFLElBQUksQ0FBRSxDQUFBO0lBQ2hELENBQUM7SUFDRCxvQkFBb0IsQ0FBRSxHQUFHLElBQWU7UUFDcEMsT0FBTyxDQUFDLEdBQUcsQ0FBRSxzQkFBc0IsRUFBRSxJQUFJLENBQUUsQ0FBQTtJQUMvQyxDQUFDOztBQUdMLGNBQWMsQ0FBQyxNQUFNLENBQUUsZ0JBQWdCLEVBQUUsYUFBYSxDQUFFLENBQUEifQ==
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiYXBwLm1qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImFwcC5tdHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBVUEsTUFBTSxhQUFjLFNBQVEsV0FBVztJQU1yQjtJQUNBO0lBQ0E7SUFDQTtJQUNBO0lBVGQsTUFBTSxDQUFVLGtCQUFrQixHQUFHLENBQUUsTUFBTSxFQUFFLE1BQU0sRUFBRSxhQUFhLEVBQUUsYUFBYSxDQUFXLENBQUE7SUFDOUYsVUFBVSxDQUFlO0lBQ3pCLGFBQWEsQ0FBYztJQUMzQixJQUFJLEdBQXNCLElBQUksQ0FBQTtJQUM5QixZQUNjLE9BQWUsQ0FBQyxFQUNoQixPQUFlLENBQUMsRUFDaEIsVUFBa0MsTUFBTSxFQUN4QyxjQUFzQixVQUFXLElBQUssUUFBUSxFQUM5QyxjQUFzQixVQUFXLElBQUssUUFBUTtRQUV4RCxLQUFLLEVBQUUsQ0FBQTtRQU5HLFNBQUksR0FBSixJQUFJLENBQVk7UUFDaEIsU0FBSSxHQUFKLElBQUksQ0FBWTtRQUNoQixZQUFPLEdBQVAsT0FBTyxDQUFpQztRQUN4QyxnQkFBVyxHQUFYLFdBQVcsQ0FBbUM7UUFDOUMsZ0JBQVcsR0FBWCxXQUFXLENBQW1DO1FBSXhELElBQUksQ0FBQyxVQUFVLEdBQUcsSUFBSSxhQUFhLENBQUE7UUFDbkMsSUFBSSxDQUFDLGFBQWEsR0FBRyxJQUFJLENBQUMsVUFBVSxDQUFDLFFBQVEsQ0FBRSxJQUFJLENBQUMsVUFBVSxDQUFDLFVBQVUsQ0FBRSxVQUFVLENBQUUsQ0FBa0IsQ0FBQTtRQUN6RyxNQUFNLGtCQUFrQixHQUE4QjtZQUNsRCxDQUFFLFNBQVMsRUFBRSxNQUFNLENBQUU7WUFDckIsQ0FBRSxnQkFBZ0IsRUFBRSxNQUFNLENBQUU7WUFDNUIsd0JBQXdCO1lBQ3hCLENBQUUsUUFBUSxFQUFFLE9BQU8sQ0FBRTtZQUNyQixDQUFFLFlBQVksRUFBRSxZQUFZLENBQUU7WUFDOUIsQ0FBRSxZQUFZLEVBQUUsTUFBTSxDQUFFO1lBQ3hCLENBQUUsY0FBYyxF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

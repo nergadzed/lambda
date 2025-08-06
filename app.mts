@@ -9,10 +9,10 @@ type SpecifiableCSSProperties = FilterPropertiesByKey<FilterPropertiesByValue<CS
 type Writables<T> = { [ K in keyof T as Equality<{ [ P in K ]: T[ P ] }, { -readonly [ P in K ]: T[ P ] }, K, never> ]: T[ K ] }
 
 class GridContainer extends HTMLElement {
-    static observedAttributes = [ "rows", "columns", "rowTemplate", "colTemplate" ]
+    static readonly observedAttributes = [ "rows", "cols", "rowTemplate", "colTemplate" ] as const
     styleSheet: CSSStyleSheet
     selfStyleRule: CSSStyleRule
-    parent: HTMLElement | null = null
+    root: ShadowRoot | null = null
     constructor (
         protected rows: number = 1,
         protected cols: number = 1,
@@ -21,37 +21,60 @@ class GridContainer extends HTMLElement {
         protected colTemplate: string = `repeat(${ cols }, 1fr)`,
     ) {
         super()
-        try {
-            CSSStyleValue.parse( "grid-template-rows", rowTemplate )
-            CSSStyleValue.parse( "grid-template-columns", rowTemplate )
-        } catch {
-            console.error( "Unable to parse supplied grid-template-rows/grid-template-columns" )
-            rowTemplate = `repeat(${ rows }, 1fr)`
-            colTemplate = `repeat(${ cols }, 1fr)`
-        }
+
         this.styleSheet = new CSSStyleSheet
-        this.selfStyleRule = this.styleSheet.cssRules.item( this.styleSheet.insertRule( "grid-container {}" ) ) as CSSStyleRule
-        const propertyValuePairs: Array<[ string, CSSStyleValue ]> = [
-            [ "display", new CSSKeywordValue( "grid" ) ],
-            [ "width", CSS.percent( 100 ) ],
-            [ "height", CSS.percent( 100 ) ],
-            [ "grid-template-rows", new CSSUnparsedValue( [ rowTemplate ] ) ],
-            [ "grid-template-columns", new CSSUnparsedValue( [ colTemplate ] ) ],
-        ]
-        for ( const [ property, value ] of propertyValuePairs )
-            this.selfStyleRule.styleMap.set( property, value )
+        this.selfStyleRule = this.styleSheet.cssRules[ this.styleSheet.insertRule( ":host {}" ) ] as CSSStyleRule
+        const propertyValuePairs: Array<[ string, string ]> = [
+            [ "display", "grid" ],
+            [ "container-type", "size" ],
+            // [ "width", "98cqw" ],
+            [ "height", "98cqh" ],
+            [ "box-sizing", "border-box" ],
+            [ "margin-top", "1cqh" ],
+            [ "margin-right", "1cqw" ],
+            [ "margin-bottom", "1cqh" ],
+            [ "margin-left", "1cqw" ],
+            [ "grid-template-rows", rowTemplate ],
+            [ "grid-template-columns", colTemplate ],
+            [ "grid-auto-rows", "0" ],
+            [ "grid-auto-columns", "0" ],
+        ]; for ( const [ property, value ] of propertyValuePairs ) this.updateStyle( property, value )
+    }
+    protected updateStyle( property: string, value: string ) {
+        try {
+            if ( typeof value === "string" ) {
+                CSSStyleValue.parse( property, value )
+            }
+            this.selfStyleRule.style.setProperty( property, value )
+        } catch {
+            console.error( `Unable to parse ${ value } as valid value for ${ property }.` )
+        }
     }
     adoptedCallback( ...rest: unknown[] ) {
         console.log( "adoptedCallback", rest )
     }
-    attributeChangedCallback( ...rest: unknown[] ) {
-        console.log( "attributeChangedCallback", rest )
+    attributeChangedCallback( name: typeof GridContainer.observedAttributes[ number ], oldValue: string | null, newValue: string | null ) {
+        console.log( `${ name } changed from ${ oldValue } to ${ newValue }` )
+        switch ( name ) {
+        case "rows":
+            newValue = `repeat(${ newValue ?? "1" }, 1fr)`
+        case "rowTemplate":
+            this.updateStyle( "grid-template-rows", newValue ?? "repeat(1, 1fr)" )
+            break
+        case "cols":
+            newValue = `repeat(${ newValue ?? "1" }, 1fr)`
+        case "colTemplate":
+            this.updateStyle( "grid-template-columns", newValue ?? "repeat(1, 1fr)" )
+            break
+        default:
+            const _exhaustive: never = name
+            throw new Error( `GridContainer's attributeChangedCallback's switch is non-exhaustive. Missed ${ _exhaustive }` )
+        }
     }
-    connectedCallback( ...rest: unknown[] ) {
-        this.parent = this.parentElement
-        this.parent?.shadowRoot ?? this.parentElement?.attachShadow( { mode: "open" } )
-        this.parent?.shadowRoot?.adoptedStyleSheets.push( this.styleSheet )
-        this.parent?.shadowRoot?.appendChild( this )
+    connectedCallback() {
+        this.root = this.attachShadow( { mode: "open" } )
+        this.root.adoptedStyleSheets = [ this.styleSheet ]
+        this.root.appendChild( document.createElement( "slot" ) )
     }
     connectedMoveCallback( ...rest: unknown[] ) {
         console.log( "connectedMoveCallback", rest )
