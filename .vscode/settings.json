@@ -88,7 +88,7 @@
     "editor.inlineSuggest.showToolbar": "never",
     "editor.inlineSuggest.syntaxHighlightingEnabled": true,
     "editor.lineHeight": 1.44,
-    "editor.minimap.autohide": false,
+    "editor.minimap.autohide": "none",
     "editor.minimap.enabled": false,
     "editor.minimap.maxColumn": 120,
     "editor.minimap.renderCharacters": false,
