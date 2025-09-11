@@ -114,19 +114,22 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
     col ( index: number ) { return this.transposed.at( index )?.map( identity =>      identity   ) }
 
     * [ Symbol.iterator ] (
-        initial  : Index                 = [ 0, 0 ],
-        limit    : number                = this.y * this.x,
-        traverse : [ Index, ...Index[] ] = Array.of( ...Array( this.x ).fill( [ 0, 1 ] ), [ 1, 1 - this.x ] ) as [ Index, ...Index[] ],
-        relative : boolean               = true,
+        initial   : Index                 = [ 0, 0 ],
+        limit     : number                = this.y * this.x - initial[ 0 ] * initial[ 1 ],
+        traversal : [ Index, ...Index[] ] = Array.of(
+            ...Array( this.x - initial[ 1 ] ).fill( [ 0, 1 ] ), [ 1, 1 - this.x ],
+            ...Array( this.x                ).fill( [ 0, 1 ] ), [ 1, 1 - this.x ],
+        ) as [ Index, ...Index[] ],
+        relative  : boolean               = true,
     ): MGen<T> {
         let [ λ, y, x ] = [ 0, ...initial ],
             input: Nullable<Index>,
-            shift: Index,
-            modular = ( index: number, axis: "y" | "x" ) => index % this[ axis ]
-        while ( limit --> 0 ) {
-            shift = traverse[ λ ++ % traverse.length ]
-
-
+            increment = relative
+                ? ( index: Index, shift: Index ): Index => [ index[ 0 ] + shift[ 0 ], index[ 1 ] + shift[ 1 ] ]
+                : (     _: Index, shift: Index ): Index => [              shift[ 0 ],              shift[ 1 ] ]
+        while ( limit > λ ++ ) {
+            input = yield [ this.state[ input?.[ 0 ] ?? y ]?.[ input?.[ 1 ] ?? x ], ...input ?? [ y, x ] ];
+            [ y, x ] = increment( [ y, x ], traversal[ λ % traversal.length ] )
         }
     }
 
@@ -155,6 +158,6 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
 }
 
 let m0 = new Matrix( 4, 8, ( y, x ) => `${ y }x${ x }` )
-let m0gen = m0[ Symbol.iterator ]( [ 0, 0 ], false )
+// let m0gen = m0[ Symbol.iterator ]( [ 0, 0 ], false )
 // let t0 = Matrix.traverse( m0, [ [ 0, 0 ], [ 0, 1 ] ], [ [ 1, 0 ], [ 0, 1 ] ], [ [ 2, 7 ], [ 0, -1 ] ], [ [ 0, 0 ], [ 1, 1 ] ] )
 // let m0 = new Matrix( 4, 8, ( y, x ) => y * x )
