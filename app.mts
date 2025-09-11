@@ -33,6 +33,7 @@ const ContainerGrid = class ContainerGrid extends HTMLElement implements Contain
     public root: Nullable<ShadowRoot>
     public rootRule: CSSStyleRule
     public sheet: CSSStyleSheet
+    protected matrix: Array<Array<HTMLElement | null>> = [ [ null ] ]
 
     static readonly observedAttributes = [ "rows", "columns" ] as const
     constructor ( public rows: Attributes[ "rows" ] = '1', public columns: Attributes[ "columns" ] = '1' ) {
