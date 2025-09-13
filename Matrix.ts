@@ -2,41 +2,49 @@ type Nullable<T> = void | T | null | undefined
 type Index = [ y: number, x: number ]
 type Factory<T> = ( ..._:Index ) => Nullable<T>
 type Source<T> = Factory<T> | Matrix<T> | Array<Array<Nullable<T>>> | Array<Nullable<T>> | Iterator<Nullable<T>, Nullable<T>, Nullable<Index>>
-type Predicate<T> = ( value: T, index:Index ) => boolean
-type Transform<T> = ( value: T, index:Index ) => T
+type Traversal<T> = ( entry: Nullable<T>, index: Index ) => Index
+type Predicate<T> = ( entry: Nullable<T>, index: Index ) => boolean
+type Transform<T> = ( entry: Nullable<T>, index: Index ) => Nullable<T>
 const Equality = ( target: unknown ) => ( value: unknown ) => Object.is( value, target )
 
 class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNullable<object> | Function */> {
     static traversal = {
-        abscissa: <S> ( magnitude: Index, offset: Index ) => ( entry: S, index: Index ) =>
-            Array.of( ...Array( magnitude[ 1 ] - 1 ).fill( [ 0, 1 ] ), [ 1, 1 - magnitude[ 1 ] ] ) as [ Index, ...Index[] ],
-        ordinate: <S> ( magnitude: Index, offset: Index ) => ( entry: S, index: Index ) =>
-            Array.of( ...Array( magnitude[ 0 ] - 1 ).fill( [ 1, 0 ] ), [ 1 - magnitude[ 0 ], 1 ] ) as [ Index, ...Index[] ],
+        abscissa: <S>( [ _, X ]: Index ) => ( _: S, [ y, x ]: Index ): Index => X > x + 1 ? [ y, x + 1 ] : [ y + 1, 0 ],
+        ordinate: <S>( [ Y, _ ]: Index ) => ( _: S, [ y, x ]: Index ): Index => Y > y + 1 ? [ y + 1, x ] : [ 0, x + 1 ],
     }
-    static factory   <S> ( source: Source<S> ): Factory<S> {
+    static validation = {
+        isFunc: <S>( target: unknown ): target is Factory<S> =>
+            typeof target === 'function',
+        isSelf: <S>( target: unknown ): target is Matrix<S> =>
+            target instanceof Matrix,
+        isDeep: <S>( target: unknown ): target is S[][] =>
+            Array.isArray( target ) && target.every( member => Array.isArray( member ) ),
+        isFlat: <S>( target: unknown ): target is S[] =>
+            Array.isArray( target ),
+        isIter: <S>( target: unknown ): target is Iterator<S, Nullable<S>, Nullable<Index>> =>
+            target instanceof Iterator,
+    }
+    static factory   <S> (    source : Source<S>   ): Factory<S> {
         switch ( true ) {
-        case Matrix.isFunc<S>( source ):           return                                         source
-        case Matrix.isSelf<S>( source ):           return             ( y: number, x: number ) => source.state[ y ]?.[ x ]
-        case Matrix.isDeep<Nullable<S>>( source ): return             ( y: number, x: number ) => source[ y ]?.[ x ]
-        case Matrix.isFlat<Nullable<S>>( source ): return ( source => ( y: number, x: number ) => source.next( [ y, x ] ).value )( source.values() )
-        case Matrix.isIter<Nullable<S>>( source ): return             ( y: number, x: number ) => source.next( [ y, x ] ).value
-        default: throw new TypeError
+            case Matrix.validation.isFunc<S>( source ):
+                return source
+            case Matrix.validation.isSelf<S>( source ):
+                return ( y: number, x: number ) => source.state[ y ]?.[ x ]
+            case Matrix.validation.isDeep<Nullable<S>>( source ):
+                return ( y: number, x: number ) => source[ y ]?.[ x ]
+            case Matrix.validation.isFlat<Nullable<S>>( source ):
+                return ( source => ( y: number, x: number ) => source.next( [ y, x ] ).value )( source.values() )
+            case Matrix.validation.isIter<Nullable<S>>( source ):
+                return ( y: number, x: number ) => source.next( [ y, x ] ).value
+            default: throw new TypeError
         }
     }
-    static isFunc    <S> ( target: unknown ): target is Factory<S> {
-        return typeof target === 'function'
+    static coalesce  <S> ( ...sources: Source<S>[] ): Factory<S> {
+
     }
-    static isSelf    <S> ( target: unknown ): target is Matrix<S> {
-        return target instanceof Matrix
-    }
-    static isDeep    <S> ( target: unknown ): target is S[][] {
-        return Array.isArray( target ) && target.every( member => Array.isArray( member ) )
-    }
-    static isFlat    <S> ( target: unknown ): target is S[] {
-        return Array.isArray( target )
-    }
-    static isIter    <S> ( target: unknown ): target is Iterator<S, Nullable<S>, Nullable<Index>> {
-        return target instanceof Iterator
+
+    static traverse  <S> ( target: Matrix<S> ): Matrix<S> {
+
     }
     static rotate    <S> ( target: Matrix<S>, n: number ): Matrix<S> {
         switch ( (n % 4 + 4) % 4 ) {
@@ -49,8 +57,6 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
     }
     static transpose <S> ( target: Matrix<S> ): Matrix<S> {
         return new Matrix<S>( target.x, target.y, target.cols )
-    }
-    static traverse  <S> ( target: Matrix<S> ) {
     }
     static frame     <S> ( target: Matrix<S>, yStart: number, xStart: number, yEnd: number, xEnd: number ): Matrix<S> {
         const factory = Matrix.factory<S>( target.rows )
@@ -70,7 +76,7 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
     static fill      <S> ( target: Matrix<S>, ...sources: [ Source<S>, ...Source<S>[] ] ): Matrix<S> {
         return new Matrix<S>( target.y, target.x, ...sources )
     }
-    static deflate   <S> ( target: Matrix<S>, discard: S, predicate: Predicate<Nullable<S>> = Equality( discard ) ): Matrix<S> {
+    static deflate   <S> ( target: Matrix<S>, discard: S, predicate: Predicate<S> = Equality( discard ) ): Matrix<S> {
         const factory = Matrix.factory<S>( target )
         let   [ Y,  X  ] = [ 0, 0 ]
         const [ Ys, Xs ] = [
@@ -78,19 +84,19 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
             target.transposed.map( ( col, x ) => col.every( ( entry, y ) => predicate( entry, [ y, x ] ) ) ? X++ : x ), // Performance gain by direct access of the state rather than target.transposed use?
         ]; return new Matrix<S>( target.y - Y, target.x - X, ( y, x ) => factory( Ys[ y ], Xs[ x ] ) )
     }
-    static omit      <S> ( target: Matrix<S>, discard: S, predicate: Predicate<Nullable<S>> = Equality( discard ) ): Matrix<S> {
+    static omit      <S> ( target: Matrix<S>, discard: S, predicate: Predicate<S> = Equality( discard ) ): Matrix<S> {
         const factory = Matrix.factory<S>( target )
         return new Matrix<S>( target.y, target.x, ( y, x ) => ( entry => predicate( entry, [ y, x ] ) ? null : entry )( factory( y, x ) ) )
     }
-    static replace   <S> ( target: Matrix<S>, discard: S, by: S, predicate: Predicate<Nullable<S>> = Equality( discard ), transform: Transform<Nullable<S>> = () => by ): Matrix<S> {
+    static replace   <S> ( target: Matrix<S>, discard: S, by: S, predicate: Predicate<S> = Equality( discard ), transform: Transform<S> = () => by ): Matrix<S> {
         const factory = Matrix.factory<S>( target )
         return new Matrix<S>( target.y, target.x, ( y, x ) => ( entry => predicate( entry, [ y, x ] ) ? transform( entry, [ y, x ] ) : entry )( factory( y, x ) ) )
     }
-    static apply     <S> ( target: Matrix<S>, transform: Transform<Nullable<S>> ): Matrix<S> {
+    static apply     <S> ( target: Matrix<S>, transform: Transform<S> ): Matrix<S> {
         const factory = Matrix.factory<S>( target )
         return new Matrix<S>( target.y, target.x, ( y, x ) => ( entry => transform( entry, [ y, x ] ) )( factory( y, x ) ) )
     }
-    static extract   <S> ( target: Matrix<S>, entry: S, predicate: Predicate<Nullable<S>> = Equality( entry ) ): Matrix<S> {
+    static extract   <S> ( target: Matrix<S>, entry: S, predicate: Predicate<S> = Equality( entry ) ): Matrix<S> {
         const factory = Matrix.factory<S>( target )
         return new Matrix<S>( target.y, target.x, ( y, x ) => ( entry => predicate( entry, [ y, x ] ) ? entry : null )( factory( y, x ) ) )
     }
@@ -114,29 +120,23 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
     get cols ()           { return this.transposed             .map( identity => [ ...identity ] ) }
     col ( index: number ) { return this.transposed.at( index )?.map( identity =>      identity   ) }
 
-    // * [ Symbol.iterator ] (
-    //     initial   : Index                 = [ 0, 0 ],
-    //     limit     : number                = this.y * this.x - initial[ 0 ] * initial[ 1 ],
-    //     traversal : [ Index, ...Index[] ] = Matrix.traversal.abscissa( [ this.y, this.x ], initial ),
-    //     relative  : boolean               = true,
-    // ): Generator<[ entry: Nullable<T>, Index ], void, Nullable<Index>> {
-    //     let [ λ, y, x ] = [ 0, ...initial ], input: Nullable<Index>, increment = relative ?
-    //         ( index: Index, shift: Index ) => [ index[ 0 ] + shift[ 0 ], index[ 1 ] + shift[ 1 ] ] :
-    //         (     _: Index, shift: Index ) => [              shift[ 0 ],              shift[ 1 ] ]
-    //     while ( limit > λ )
-    //         ( input = yield [ this.state[ input?.[ 0 ] ?? y ]?.[ input?.[ 1 ] ?? x ], ...input ?? [ y, x ] ] ) ??
-    //         ( [ y, x ] = increment( [ y, x ], traversal[ λ ++ % traversal.length ] ) )
-    // }
-    // * indexOf (
-    //     entry     : Nullable<T>,
-    //     initial   : Index = [ 0, 0 ],
-    //     predicate : Predicate<Nullable<T>> = Equality( entry )
-    // ): Generator<[ entry: Nullable<T>, Index ], void, void> {
-    //     yield * this[ Symbol.iterator ]( initial ).filter( entry => predicate( ...entry ) )
-    // }
+    * [ Symbol.iterator ] (
+        initial  : Index        = [ 0, 0 ],
+        traverse : Traversal<T> = Matrix.traversal.abscissa( [ this.y, this.x ] ),
+        limit    : number       = this.y * this.x - initial[ 0 ] * initial[ 1 ],
+    ): Generator<[ entry: Nullable<T>, Index ], void, Nullable<Index>> {
+        let [ y, x ] = initial, input: Nullable<Index>
+        while ( limit --> 0 )
+            ( input = yield [ this.state[ input?.[ 0 ] ?? y ]?.[ input?.[ 1 ] ?? x ], input ?? [ y, x ] ] ) ??
+            ( [ y, x ] = traverse( this.state[ y ]?.[ x ], [ y, x ] ) )
+    }
+    * indexOf (
+        entry     : Nullable<T>,
+        predicate : Predicate<T> = Equality( entry ),
+        initial   : Index        = [ 0, 0 ]
+    ): Generator<[ entry: Nullable<T>, Index ], void, void> {
+        yield * this[ Symbol.iterator ]( initial ).filter( entry => predicate( ...entry ) )
+    }
 }
 
 let m0 = new Matrix( 4, 8, ( y, x ) => `${ y }x${ x }` )
-// let m0gen = m0[ Symbol.iterator ]( [ 0, 0 ], false )
-// let t0 = Matrix.traverse( m0, [ [ 0, 0 ], [ 0, 1 ] ], [ [ 1, 0 ], [ 0, 1 ] ], [ [ 2, 7 ], [ 0, -1 ] ], [ [ 0, 0 ], [ 1, 1 ] ] )
-// let m0 = new Matrix( 4, 8, ( y, x ) => y * x )
