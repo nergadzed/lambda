@@ -1,16 +1,28 @@
-type Nullable<T> = void | T | null | undefined
-type Index = [ y: number, x: number ]
-type Factory<T> = ( ..._:Index ) => Nullable<T>
-type Source<T> = Factory<T> | Matrix<T> | Array<Array<Nullable<T>>> | Array<Nullable<T>> | Iterator<Nullable<T>, Nullable<T>, Nullable<Index>>
-type Traversal<T> = ( entry: Nullable<T>, index: Index ) => Index
-type Predicate<T> = ( entry: Nullable<T>, index: Index ) => boolean
-type Transform<T> = ( entry: Nullable<T>, index: Index ) => Nullable<T>
-const Equality = ( target: unknown ) => ( value: unknown ) => Object.is( value, target )
+type Nullable  <T> = void | T | null | undefined
+type Index         = [ y: number, x: number ]
+type Factory   <T> = ( ..._:Index ) => Nullable<T>
+type Source    <T> = Factory<T> | Matrix<T> | Array<Array<Nullable<T>>> | Array<Nullable<T>> | Iterator<Nullable<T>, Nullable<T>, Nullable<Index>>
+type Traversal <T> = ( entry: Nullable<T>, index: Index ) => Index
+type Predicate <T> = ( entry: Nullable<T>, index: Index ) => boolean
+type Transform <T> = ( entry: Nullable<T>, index: Index ) => Nullable<T>
+type Behavior      = 'constrain' | 'continue' | 'cycle' | 'throw'
+const Equality     = ( target: unknown ) => ( value: unknown ) => Object.is( value, target )
 
 class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNullable<object> | Function */> {
     static traversal = {
-        abscissa: <S>( [ _, X ]: Index ) => ( _: S, [ y, x ]: Index ): Index => X > x + 1 ? [ y, x + 1 ] : [ y + 1, 0 ],
-        ordinate: <S>( [ Y, _ ]: Index ) => ( _: S, [ y, x ]: Index ): Index => Y > y + 1 ? [ y + 1, x ] : [ 0, x + 1 ],
+        abscissa: <S> ( [ Y, X ]: Index, behavior: Behavior ) => 
+            ( _: S, [ y, x ]: Index ): Index => {
+                ++ x < X || ( y ++, x = 0 )
+                if ( Y <= y ) switch ( behavior ) {
+                    case 'constrain' : y --  ; break
+                    case 'continue'  : y     ; break
+                    case 'cycle'     : y = 0 ; break
+                    case 'throw'     : throw new RangeError
+                } return [ y, x ]
+            },
+        ordinate: <S> ( [ Y, X ]: Index, behavior: Behavior ) => ( abscissa =>
+            ( _: S, [ y, x ]: Index ): Index => ( [ x, y ] = abscissa( _, [ x, y ] ), [ y, x ] )
+        )( this.traversal.abscissa<S>( [ X, Y ], behavior ) )
     }
     static validation = {
         isFunc: <S>( target: unknown ): target is Factory<S> =>
@@ -24,7 +36,7 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
         isIter: <S>( target: unknown ): target is Iterator<S, Nullable<S>, Nullable<Index>> =>
             target instanceof Iterator,
     }
-    static factory   <S> (    source : Source<S>   ): Factory<S> {
+    static factory   <S> (    source  : Source<S>   ): Factory<S> {
         switch ( true ) {
             case Matrix.validation.isFunc<S>( source ):
                 return source
@@ -39,13 +51,18 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
             default: throw new TypeError
         }
     }
-    static coalesce  <S> ( ...sources: Source<S>[] ): Factory<S> {
-
+    static coalesce  <S> ( ...sources : Source<S>[] ): Factory<S> {
+        return ( ...[ y, x ]: Index ) => {
+            for ( const [ index, source ] of sources.entries() ) {
+                const entry: Nullable<S> = ( sources[ index ] = Matrix.factory<S>( source ) )( y, x )
+                if ( entry != null ) return entry
+                else continue
+            } return null
+        }
     }
+    // static traverse  <S> ( target: Matrix<S> ): Matrix<S> {
 
-    static traverse  <S> ( target: Matrix<S> ): Matrix<S> {
-
-    }
+    // }
     static rotate    <S> ( target: Matrix<S>, n: number ): Matrix<S> {
         switch ( (n % 4 + 4) % 4 ) {
         case 1: return new Matrix<S>( target.x, target.y, target.cols.map( row => row.reverse() ) )
@@ -103,15 +120,9 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
     state      : ReadonlyArray<ReadonlyArray<Nullable<T>>>
     transposed : ReadonlyArray<ReadonlyArray<Nullable<T>>>
     constructor ( public readonly y: number, public readonly x: number, ...sources: Source<T>[] ) {
-        function coalesce ( y: number, x: number ) {
-            const entries = sources.entries()
-            return function recurse ( { done, value }: IteratorResult<[ index: number, source: Source<T> ], undefined> ): Nullable<T> {
-                if ( done ) return null
-                else return ( sources[ value[ 0 ] ] = Matrix.factory<T>( value[ 1 ] ) )( y, x ) ?? recurse( entries.next() )
-            }( entries.next() )
-        }
+        const factory   = Matrix.coalesce<T>( ...sources )
         this.state      = Array.from( Array( y ), ( _, y_index ) =>
-                          Array.from( Array( x ), ( _, x_index ) => coalesce( y_index, x_index ) ) )
+                          Array.from( Array( x ), ( _, x_index ) => factory   ( y_index,   x_index ) ) )
         this.transposed = Array.from( Array( x ), ( _, x_index ) =>
                           Array.from( Array( y ), ( _, y_index ) => this.state[ y_index ][ x_index ] ) )
     }
@@ -122,8 +133,9 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
 
     * [ Symbol.iterator ] (
         initial  : Index        = [ 0, 0 ],
-        traverse : Traversal<T> = Matrix.traversal.abscissa( [ this.y, this.x ] ),
         limit    : number       = this.y * this.x - initial[ 0 ] * initial[ 1 ],
+        behavior : Behavior     = 'continue',
+        traverse : Traversal<T> = Matrix.traversal.abscissa( [ this.y, this.x ], behavior ),
     ): Generator<[ entry: Nullable<T>, Index ], void, Nullable<Index>> {
         let [ y, x ] = initial, input: Nullable<Index>
         while ( limit --> 0 )
@@ -139,4 +151,6 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
     }
 }
 
-let m0 = new Matrix( 4, 8, ( y, x ) => `${ y }x${ x }` )
+let m0 = new Matrix( 2, 4, ( y, x ) => `${ y }x${ x }` )
+let abscissa = m0[ Symbol.iterator ]( [ 0, 0 ], Infinity, "cycle", Matrix.traversal.abscissa( [ m0.y, m0.x ], 'cycle' ) )
+let ordinate = m0[ Symbol.iterator ]( [ 0, 0 ], Infinity, "cycle", Matrix.traversal.ordinate( [ m0.y, m0.x ], 'cycle' ) )
