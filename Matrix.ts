@@ -179,7 +179,7 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
         let [ y, x ] = initial, entry: Nullable<T>,
             overflow = Matrix.traversal.overflow( behavior, [ this.y, this.x ] )
         while ( entry = this.state[ y ]?.[ x ], limit --> 0 )
-            [ y, x ] = overflow( traverse( entry, ( yield [ entry, [ y, x ] ] ) ?? [ y, x ], [ this.y, this.x ] ) )
+            [ y, x ] = overflow( ( yield [ entry, [ y, x ] ] ) ?? traverse( entry, [ y, x ], [ this.y, this.x ] ) )
     }
     * indexOf(
         entry     : Nullable<T>,
@@ -188,75 +188,56 @@ class Matrix<T /* extends string | number | bigint | boolean | symbol | NonNulla
     ): Generator<[ entry: Nullable<T>, Index ], void, void> {
         yield * this[ Symbol.iterator ]( initial ).filter( entry => predicate( ...entry ) )
     }
-    * areaOf(
-        entry      : Nullable<T>,
-        initial    : Index        = [0, 0],
-        predicate  : Predicate<T> = Equality( entry ),
-        consistent : boolean      = false,
-    ): Generator<[ Index, Index ], void, void> {
-        const indexes = [ ...this.indexOf( entry, predicate ) ]
-    }
-
-
-
-
-
-
-
-
-    * contiguous (
+    // * areaOf(
+    //     entry      : Nullable<T>,
+    //     initial    : Index        = [0, 0],
+    //     predicate  : Predicate<T> = Equality( entry ),
+    //     consistent : boolean      = false,
+    // ): Generator<[ Index, Index ], void, void> {
+    //     const indexes = [ ...this.indexOf( entry, initial, predicate ) ]
+    // }
+    * contiguous_greedy_dfs (
         initial   : Index,
         final     : Index,
+        predicate : Predicate<T> = Equality( this.state[ initial[ 0 ] ][ initial[ 1 ] ] ),
         DoF       : [ Y⃮: boolean, X⃮: boolean, Y⃯: boolean, X⃯: boolean ]
                   = [      false,      false,       true,       true ],
-        predicate : Predicate<T> = Equality( this.state[ initial[ 0 ] ][ initial[ 1 ] ] ),
     ) {
-        let location = this[ Symbol.iterator ]( initial, Infinity, 'continue' ).next,
-            minimum  = Math.abs( final[ 0 ] - initial[ 0 ] ) + Math.abs( final[ 1 ] - initial[ 1 ] ),
-            [ y, x ] = initial, Y⃮X: Index, YX⃮: Index, Y⃯X: Index, YX⃯: Index,
-            [ Y, X ] = [ this.y, this.x ], result: IteratorResult<[ entry: Nullable<T>, Index ], void>,
-            movement = [
-                ...DoF[ 0 ] ? [ Y⃮X = [ -1,  0 ] ] : [],
-                ...DoF[ 1 ] ? [ YX⃮ = [  0, -1 ] ] : [],
-                ...DoF[ 2 ] ? [ Y⃯X = [  1,  0 ] ] : [],
-                ...DoF[ 3 ] ? [ YX⃯ = [  0,  1 ] ] : [],
-            ], allowed = new Map( movement.map( m => [ m, movement.filter( n => m[ 0 ] + n[ 0 ] !== 0 || m[ 1 ] + n[ 1 ] !== 0 ) ] ) )
-        function move ( YX: Index, [ y, x ]: Index ): Index[] {
-            result = location( [ y += YX[ 0 ], x += YX[ 1 ] ] )
-            if ( predicate( result.value?.[ 0 ] ) ) {
-                return [ [ y, x ],  ]
-            } else return []
+        let location = this[ Symbol.iterator ]( initial, Infinity, 'continue' ),
+            bias = ( [ yᷧ, xᷧ ]: Index, [ yᷨ, xᷨ ]: Index ) =>
+                ( final[ 0 ] - yᷧ + final[ 1 ] - xᷧ ) -
+                ( final[ 0 ] - yᷨ + final[ 1 ] - xᷨ ),
+            [ Y, X ] = [ this.y, this.x ],
+            movement = [ ...DoF[ 0 ] ? [ [ -1,  0 ] ] : [],
+                         ...DoF[ 1 ] ? [ [  0, -1 ] ] : [],
+                         ...DoF[ 2 ] ? [ [  1,  0 ] ] : [],
+                         ...DoF[ 3 ] ? [ [  0,  1 ] ] : [], ] as Index[],
+            allowed = new Map<Index, Index[]>(
+                movement.map( key => [ key, movement.filter( value => key[ 0 ] + value[ 0 ] !== 0 || key[ 1 ] + value[ 1 ] !== 0 ) ] )
+            )
+        function traversal ( YX: Index, [ y, x ]: Index ): Index[] | null {
+            let result = location.next( [ y += YX[ 0 ], x += YX[ 1 ] ] )
+            if ( -1 < y && y < Y && -1 < x && x < X )
+                if ( ! result.done && predicate( result.value[ 0 ] ) )
+                    if ( y === final[ 0 ] && x === final[ 1 ] ) 
+                        return [ [ y, x ] ]
+                    else for ( const move of allowed.get( YX )!.toSorted( bias ) ) {
+                        let  success = traversal( move, [ y, x ] )
+                        if ( success ) return [ [ y, x ], ...success ]
+                        else continue
+                    }
+            return null
         }
-
-
-
-
-
-
-
-
-
-
-
-
-        location
-        minimum
-        allowed
-        movement
-        predicate
-        initial
-        Y⃮X
-        Y⃯X
-        YX⃮
-        YX⃯
-        x
-        y
-        X
-        Y
+        for ( const [ DoF, _ ] of allowed )
+            yield traversal( DoF, initial )
     }
 }
 
-let m0 = new Matrix( 2, 4, ( y, x ) => `${ y }x${ x }` )
-let abscissa = m0[ Symbol.iterator ]( [ 0, 0 ], Infinity, "cycle", Matrix.traversal.abscissa )
-let ordinate = m0[ Symbol.iterator ]( [ 0, 0 ], Infinity, "cycle", Matrix.traversal.ordinate )
-abscissa === ordinate
+let m0 = new Matrix( 4, 4, ( y, x ) => `${ y }x${ x }` )
+let m0gen = m0[ Symbol.iterator ]( [ 0, 0 ], Infinity, 'continue' )
+debugger
+let m0contiguous = m0.contiguous_greedy_dfs( [ 0, 0 ], [ 3, 3 ], ( entry ) => typeof entry === 'string' )
+console.log(m0contiguous.next())
+console.log(m0contiguous.next())
+console.log(m0contiguous.next())
+console.log(m0contiguous.next())
